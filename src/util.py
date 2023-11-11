@@ -7,10 +7,6 @@ import torch.nn as nn
 from torch.nn.init import trunc_normal_
 
 
-def printShape(t, tName):
-    print(f"{tName}.shape->", t.shape)
-
-
 class ChannelWeights(nn.Module):  # # 2 B C 1 1
     def __init__(self, dim, reduction=1):
         super(ChannelWeights, self).__init__()
@@ -26,6 +22,7 @@ class ChannelWeights(nn.Module):  # # 2 B C 1 1
     def forward(self, x1, x2):
         B, _, H, W = x1.shape
         x = torch.cat((x1, x2), dim=1)  # bs 6 1 1
+        print(x.shape)
         avg = self.avg_pool(x).view(B, self.dim * 2)  # bs 2dim
         max = self.max_pool(x).view(B, self.dim * 2)
         y = torch.cat((avg, max), dim=1)  # B 4C
@@ -63,12 +60,17 @@ class FeatureRectifyModule(nn.Module):
         x1, x2 = x
         channel_weights = self.channel_weights(x1, x2)
         spatial_weights = self.spatial_weights(x1, x2)
-        # print(channel_weights.shape, spatial_weights.shape)
-        out_x1 = x1 + self.lambda_c * channel_weights[1] * x2 + self.lambda_s * spatial_weights[1] * x2
-        out_x2 = x2 + self.lambda_c * channel_weights[0] * x1 + self.lambda_s * spatial_weights[0] * x1
+        #print("channel_weights and spatial_weights",channel_weights.shape, spatial_weights.shape)
+        print("channel_weights[1] * x2",(channel_weights[1] * x2).shape)
+        print("self.lambda_s * spatial_weights[1] * x2", (self.lambda_s * spatial_weights[1] * x2).shape)
+        print("self.lambda_c * channel_weights[1] * x2 + self.lambda_s * spatial_weights[1] * x2",( self.lambda_c * channel_weights[1] * x2 + self.lambda_s * spatial_weights[1] * x2).shape)
+        out_x1 = x1 + self.lambda_c * channel_weights[1] * x2 +self.lambda_s * spatial_weights[1] * x2
+        out_x2 = x2 + self.lambda_c * channel_weights[0] * x1 +self.lambda_s * spatial_weights[0] * x1
+        #print("out_x1 and out_x2", out_x1.shape, out_x2.shape)
+
         return out_x1, out_x2
 
-
+# **************************************************************************************************************#
 class CrossAttention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None):
         super(CrossAttention, self).__init__()
@@ -127,14 +129,19 @@ class CrossPath(nn.Module):
         # 分成两块 维度 - 1
         y1, u1 = self.act1(self.channel_proj1(x1)).chunk(2, dim=-1)  # torch.Size([1, 14400, 256])
         y2, u2 = self.act2(self.channel_proj2(x2)).chunk(2, dim=-1)  # torch.Size([1, 14400, 256])
+        print("y1 and u1 shape",y1.shape,u1.shape)
 
         vv1, vv2 = self.cross_attn(u1, u2)
+        print("vv1 and vv2 shape", vv1.shape, vv2.shape)
 
         y1 = torch.cat((y1, vv1), dim=-1)
         y2 = torch.cat((y2, vv2), dim=-1)
+        print("y1 and y1 shape", y1.shape, y2.shape)
 
         out_x1 = self.norm1(x1 + self.end_proj1(y1))
         out_x2 = self.norm2(x2 + self.end_proj2(y2))
+        print("out_x1 and out_x2 shape", out_x1.shape, out_x2.shape)
+
         return out_x1, out_x2
 
 
@@ -172,12 +179,14 @@ class FeatureFusionModule(nn.Module):
     def forward(self, x):
         x1, x2 = x
         B, C, H, W = x1.shape
-
+        print(x1.shape)
         x1 = x1.flatten(2).transpose(1, 2)
         x2 = x2.flatten(2).transpose(1, 2)
+        print(x1.shape)
 
         x1, x2 = self.cross(x1, x2)
         merge = torch.cat((x1, x2), dim=-1)
+        print("merge.shape",merge.shape)
         merge = self.channel_emb(merge, H, W)
 
         return merge
@@ -197,20 +206,20 @@ class MFFM(nn.Module):
 
 
 if __name__ == '__main__':
-    in_batch, inchannel, in_h, in_w = 1, 256, 120, 120
+    in_batch, inchannel, in_h, in_w = 4, 256, 120, 120
 
     x = torch.randn(in_batch, inchannel, in_h, in_w)
     y = torch.randn(in_batch, inchannel, in_h, in_w)
 
     FRM = FeatureRectifyModule(inchannel)
     out_x1, out_x2 = FRM([x, y])
-    # print(out_x1.shape, out_x2.shape)  # torch.Size([1, 256, 120, 120]) torch.Size([1, 256, 120, 120])
-
+    print(out_x1.shape, out_x2.shape)  # torch.Size([1, 256, 120, 120]) torch.Size([1, 256, 120, 120])
+    print("*"*20)
     dim = inchannel
     head_num = 8
     FFM = FeatureFusionModule(dim=dim, reduction=1, num_heads=1, norm_layer=nn.BatchNorm2d)
     merge = FFM([out_x1, out_x2])  # torch.Size([1, 256, 120, 120])
-    # print(merge.shape)
+    print(len(merge))
 
     '''
     mffm = MFFM(inchannel, 1)

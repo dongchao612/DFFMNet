@@ -14,7 +14,7 @@ class MFFMNet(nn.Module):
     def __init__(self, out_planes, norm_layer, pretrained_model=None):
         super(MFFMNet, self).__init__()
         self.backbone = resnet50(pretrained_model, norm_layer=norm_layer, deep_stem=True, stem_width=64,
-                                  embed_dims=[256, 512, 1024, 2048])
+                                 embed_dims=[256, 512, 1024, 2048])
 
         self.dilate = 2  # 使得最后一层变成 (30,40)
 
@@ -33,8 +33,7 @@ class MFFMNet(nn.Module):
         pred = F.interpolate(pred, size=(h, w), mode='bilinear', align_corners=True)
         aux_fm = F.interpolate(aux_fm, size=(h, w), mode='bilinear', align_corners=True)
 
-
-        return pred,aux_fm
+        return pred, aux_fm
 
     # @staticmethod
     def _nostride_dilate(self, m, dilate):
@@ -54,19 +53,39 @@ if __name__ == '__main__':
     device = "cpu"
     model_ = MFFMNet(37,
                      pretrained_model=None,
-                     norm_layer=nn.BatchNorm2d).to(device)
+                     norm_layer=nn.BatchNorm2d)  # .to(device)
     # print(model_)
-    in_batch, inchannel_rgb, in_h, in_w = 2, 3, 128, 128
-    inchannel_depth = 1
-    rgb = torch.randn(in_batch, inchannel_rgb, in_h, in_w,dtype=torch.float32).to(device)
-    depth = torch.randn(in_batch, inchannel_depth, in_h, in_w,dtype=torch.float32).to(device)
+    # in_batch, inchannel_rgb, in_h, in_w = 2, 3, 240, 320
+    # inchannel_depth = 1
+    # rgb = torch.randn(in_batch, inchannel_rgb, in_h, in_w,dtype=torch.float32).to(device)
+    # depth = torch.randn(in_batch, inchannel_depth, in_h, in_w,dtype=torch.float32).to(device)
     '''
     resnet50、resnet101
+    
     layer1 torch.Size([2, 256, 120, 160]) torch.Size([2, 256, 120, 160])    32
     layer2 torch.Size([2, 512, 60, 80]) torch.Size([2, 512, 60, 80])        16
     layer3 torch.Size([2, 1024, 30, 40]) torch.Size([2, 1024, 30, 40])      8
     layer4 torch.Size([2, 2048, 30, 40]) torch.Size([2, 2048, 30, 40])      8
     '''
-    out = model_(rgb, depth)
-    print(out[0].shape)
-    print(out[0].dtype)# torch.float32
+    # out = model_(rgb, depth)
+    # print(out[0].shape)
+    # print(out[0].dtype)# torch.float32
+    from utils.utils import compute_speed
+
+    image_w = 640
+    image_h = 480
+    batch_size = 2
+
+
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(device)
+    compute_speed(model_, (batch_size, 3, image_h, image_w), (batch_size, 1, image_h, image_w), device, 1)
+
+    total = sum([param.nelement() for param in model_.parameters()])
+    print("Number of parameter: %.2fM" % (total / 1e6))
+
+    '''
+    
+    Elapsed Time: [1.76 s / 10 iter]
+    Speed Time: 175.97 ms / iter   FPS: 5.68
+    '''

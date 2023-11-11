@@ -9,8 +9,8 @@ from skimage.transform import resize
 
 from torchvision import transforms
 
-image_w = 640
-image_h = 480
+image_w = 320
+image_h = 240
 
 
 class RandomHSV(object):

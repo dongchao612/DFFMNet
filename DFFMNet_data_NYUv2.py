@@ -1,23 +1,20 @@
 import os
 import imageio
-from PIL import Image
-from torch.utils.data import Dataset
-from MFFMNet_transforms import *
+from torch.utils.data import Dataset, random_split
+from DFFMNet_transforms import *
 import torchvision.transforms as transforms
 
 
-image_w = 640
-image_h = 480
 
-img_dir_train_file = './data_SUNRGBD/img_dir_train.txt'
-depth_dir_train_file = './data_SUNRGBD/depth_dir_train.txt'
-label_dir_train_file = './data_SUNRGBD/label_train.txt'
-img_dir_test_file = './data_SUNRGBD/img_dir_test.txt'
-depth_dir_test_file = './data_SUNRGBD/depth_dir_test.txt'
-label_dir_test_file = './data_SUNRGBD/label_test.txt'
+img_dir_train_file = './data_NYUv2/img_dir_train.txt'
+depth_dir_train_file = './data_NYUv2/depth_dir_train.txt'
+label_dir_train_file = './data_NYUv2/label_train.txt'
+img_dir_test_file = './data_NYUv2/img_dir_test.txt'
+depth_dir_test_file = './data_NYUv2/depth_dir_test.txt'
+label_dir_test_file = './data_NYUv2/label_test.txt'
 
 
-class SUNRGBD(Dataset):
+class NYUv2(Dataset):
     def __init__(self, transform=None, phase_train=True, data_dir=None):
         self.phase_train = phase_train
         self.transform = transform
@@ -35,10 +32,12 @@ class SUNRGBD(Dataset):
                 self.depth_dir_test = f.read().splitlines()
             with open(label_dir_test_file, 'r') as f:
                 self.label_dir_test = f.read().splitlines()
+
         except:
             print("开始生成txt文件...")
             if data_dir is None:
-                data_dir = r'D:\Document\github\data_set\sun_rgbd'
+                data_dir = r'D:\Document\github\data_set\NYUv2'
+
             self.img_dir_train = []
             self.depth_dir_train = []
             self.label_dir_train = []
@@ -46,10 +45,14 @@ class SUNRGBD(Dataset):
             self.img_dir_test = []
             self.depth_dir_test = []
             self.label_dir_test = []
-            # print(os.listdir(data_dir))  # ['depth', 'label', 'image']
-            depthpath = os.path.join(data_dir, os.listdir(data_dir)[0])  # D:\Document\github\data_set\sun_rgbd\depth
-            imagepath = os.path.join(data_dir, os.listdir(data_dir)[1])
-            labelpath = os.path.join(data_dir, os.listdir(data_dir)[-1])
+
+            # print(os.listdir(data_dir))
+            # ['coloredlabel', 'depth', 'depthmap', 'depth_npy', 'image', 'label', 'nyu_depth_v2_labeled.mat',
+            # 'splits.mat', 'test.txt', 'train.txt']
+
+            depthpath = os.path.join(data_dir, os.listdir(data_dir)[2])
+            imagepath = os.path.join(data_dir, os.listdir(data_dir)[4])
+            labelpath = os.path.join(data_dir, os.listdir(data_dir)[5])
 
             itempath_train = os.path.join(imagepath, "train")
             itempath_test = os.path.join(imagepath, "test")
@@ -104,13 +107,10 @@ class SUNRGBD(Dataset):
             depth_dir = self.depth_dir_test
             label_dir = self.label_dir_test
 
-        label = imageio.v2.imread(label_dir[idx])
-        depth = imageio.v2.imread(depth_dir[idx])
         image = imageio.v2.imread(img_dir[idx])
-
-        # print(label_dir[idx], depth_dir[idx], img_dir[idx])
-        # print(type(label), type(depth), type(image))
-        # print(label.shape, depth.shape, image.shape)
+        depth = imageio.v2.imread(depth_dir[idx]).sum(2)
+        label = imageio.v2.imread(label_dir[idx])
+        # (480, 640, 3) (480, 640, 3) (480, 640)
 
         sample = {'image': image, 'depth': depth, 'label': label}
 
@@ -121,47 +121,40 @@ class SUNRGBD(Dataset):
 
 
 if __name__ == '__main__':
-    train_data = SUNRGBD(transform=transforms.Compose([scaleNorm(), RandomScale((1.0, 1.4)), RandomHSV((0.9, 1.1),
-                                                                                                       (0.9, 1.1),
-                                                                                                       (25, 25)),
-                                                       RandomCrop(image_h, image_w),
-                                                       RandomFlip(),
-                                                       ToTensor(),
-                                                       Normalize()]), phase_train=True)
-    print(train_data.__len__())
-    print(train_data[0]["image"].shape)  # torch.Size([3, 480, 640])
-    print(train_data[0]["depth"].shape)  # torch.Size([1, 480, 640])
-    print(train_data[0]["label"].shape)  # torch.Size([480, 640])
+    train_data = NYUv2(phase_train=True,transform=transforms.Compose([scaleNorm(), ToTensor(), Normalize()]))
+    print(train_data.__len__())  # 795
+    print(train_data[0]["image"].shape, train_data[0]["depth"].shape, train_data[0]["label"].shape)
 
-    print(train_data[0]["image"].dtype)# torch.float32
-    print(train_data[0]["depth"].dtype)
-    print(train_data[0]["label"].dtype)
+    test_data = NYUv2(phase_train=False,transform=transforms.Compose([scaleNorm(), ToTensor(), Normalize()]))
+    print(test_data.__len__())  # 654
+    print(test_data[0]["image"].shape, test_data[0]["depth"].shape, test_data[0]["label"].shape)
 
-    train_data = SUNRGBD(phase_train=True, data_dir=r"D:\Document\github\data_set\sun_rgbd")
-    print(train_data.__len__())  # 5285
-    test_data = SUNRGBD(phase_train=False, data_dir=r"D:\Document\github\data_set\sun_rgbd")  # 5285
-    print(test_data.__len__())  # 5050
-    print(train_data.__len__() + test_data.__len__())  # 10335
+    print(train_data.__len__() + test_data.__len__())  # 1308
 
     # import matplotlib.pyplot as plt
-
+    # import random
+    #
+    # plt.figure(figsize=(15, 10))
+    #
+    # ix = random.randint(0, train_data.__len__() - 1)
     # plt.subplot(2, 3, 1)
-    # plt.imshow(train_data[0]["image"])
+    # plt.imshow(train_data[ix]["image"])
     #
     # plt.subplot(2, 3, 2)
-    # plt.imshow(train_data[0]["depth"])
+    # plt.imshow(train_data[ix]["depth"], cmap='gray')
     #
     # plt.subplot(2, 3, 3)
-    # plt.imshow(train_data[0]["label"])
+    # plt.imshow(train_data[ix]["label"])
     #
+    # ix = random.randint(0, train_data.__len__() - 1)
     # plt.subplot(2, 3, 4)
-    # plt.imshow(test_data[0]["image"])
+    # plt.imshow(test_data[ix]["image"])
     #
     # plt.subplot(2, 3, 5)
-    # plt.imshow(test_data[0]["depth"])
+    # plt.imshow(test_data[ix]["depth"], cmap='gray')
     #
     # plt.subplot(2, 3, 6)
-    # plt.imshow(test_data[0]["label"])
+    # plt.imshow(test_data[ix]["label"])
     #
-    # plt.savefig("datasetSUNRGBD.png")
+    # plt.savefig("datasetNYUv2.png")
     # plt.show()

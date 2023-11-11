@@ -254,7 +254,7 @@ class DualResNet(nn.Module):
         x2 = self.depth_bn1(x2)
         x2 = self.depth_relu(x2)
         x2 = self.depth_maxpool(x2)
-
+        # print(x1.shape,x2.shape)
         x = [x1, x2]
 
         blocks = []
@@ -395,3 +395,4 @@ if __name__ == '__main__':
     layer4 torch.Size([2, 2048, 15, 20]) torch.Size([2, 2048, 15, 20])
     '''
     blocks, merges = net(rgb, depth)
+

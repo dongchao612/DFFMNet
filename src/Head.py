@@ -120,8 +120,9 @@ class Head(nn.Module):
         encoder_out = f
 
         f = self.aspp(f)
-
+        # print("f = ",f.shape)
         low_level_features = f_list[0]
+        # print("low_level_features = ",low_level_features.shape)
         low_h, low_w = low_level_features.size(2), low_level_features.size(3)
         low_level_features = self.reduce(low_level_features)
 
@@ -130,7 +131,7 @@ class Head(nn.Module):
         f = torch.cat((f, low_level_features), dim=1)
 
         f = self.last_conv(f)
-
+        # print("last conv",f.shape)
         pred = self.classify(f)
 
         aux_fm = self.auxlayer(encoder_out)
@@ -138,7 +139,7 @@ class Head(nn.Module):
 
 
 # @staticmethod
-def _nostride_dilate(m, dilate):
+def _nostride_dilate_nostride_dilate(m, dilate):
     if isinstance(m, nn.Conv2d):
         if m.stride == (2, 2):
             m.stride = (1, 1)
@@ -149,5 +150,3 @@ def _nostride_dilate(m, dilate):
             if m.kernel_size == (3, 3):
                 m.dilation = (dilate, dilate)
                 m.padding = (dilate, dilate)
-
-
